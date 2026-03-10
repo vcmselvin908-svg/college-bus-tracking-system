@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bus Driver Tracking</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            background: #0f3460;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        h2 { color: #0f3460; margin-bottom: 10px; font-size: 22px; }
+        p  { color: #555; margin-bottom: 25px; font-size: 14px; }
+        .bus-info {
+            background: #f0f4ff;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        .bus-info p { margin-bottom: 6px; color: #333; }
+        .bus-info span { font-weight: bold; color: #0f3460; }
+        .btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+            margin-bottom: 10px;
+        }
+        .btn-start { background: #28a745; color: white; }
+        .btn-stop  { background: #dc3545; color: white; display: none; }
+        .status {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .status.active {
+            background: #d4edda;
+            color: #155724;
+            display: flex;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            display: flex;
+        }
+        .pulse {
+            display: inline-block;
+            width: 10px; height: 10px;
+            background: #28a745;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 1s infinite;
+            flex-shrink: 0;
+        }
+        @keyframes pulse {
+            0%   { transform: scale(1); opacity: 1; }
+            50%  { transform: scale(1.4); opacity: 0.6; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .coords {
+            margin-top: 10px;
+            font-size: 11px;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h2>🚌 Bus Driver Panel</h2>
+    <p>Start trip to share your live location with students</p>
+
+    <div class="bus-info">
+        <p>Bus ID: <span id="busId">BUS_001</span></p>
+        <p>Driver: <span id="driverNum">Loading...</span></p>
+        <p>Route: <span id="routeName">College Route A</span></p>
+    </div>
+
+    <button class="btn btn-start" id="startBtn" onclick="startTracking()">
+        🟢 Start Trip
+    </button>
+    <button class="btn btn-stop" id="stopBtn" onclick="stopTracking()">
+        🔴 Stop Trip
+    </button>
+
+    <div class="status" id="statusBox">
+        <span class="pulse"></span>
+        <span id="statusText">Sending location...</span>
+    </div>
+    <div class="coords" id="coordsBox"></div>
+</div>
+
+<!-- Firebase SDK -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCKwtYS6RncLTYiRzoLq_d46y0pDei0T-w",
+        authDomain: "bus-tracking-system-52d5d.firebaseapp.com",
+        databaseURL: "https://bus-tracking-system-52d5d-default-rtdb.firebaseio.com",
+        projectId: "bus-tracking-system-52d5d",
+        storageBucket: "bus-tracking-system-52d5d.firebasestorage.app",
+        messagingSenderId: "929154949675",
+        appId: "1:929154949675:web:f26d706d46f6c2b94cc06e",
+        measurementId: "G-2F8MTPTJCM"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    const params = new URLSearchParams(window.location.search);
+    const BUS_ID = params.get('bus') || 'BUS_001';
+    const DRIVER_NUM = params.get('driver') || '9876543210';
+
+    document.getElementById('busId').textContent = BUS_ID;
+    document.getElementById('driverNum').textContent = DRIVER_NUM;
+
+    let trackingInterval = null;
+
+    window.startTracking = function() {
+        if (!navigator.geolocation) {
+            showStatus('GPS not supported!', 'error');
+            return;
+        }
+        document.getElementById('startBtn').style.display = 'none';
+        document.getElementById('stopBtn').style.display = 'block';
+        showStatus('Live tracking active...', 'active');
+
+        sendLocation();
+        trackingInterval = setInterval(sendLocation, 5000);
+    }
+
+    window.stopTracking = function() {
+        clearInterval(trackingInterval);
+        document.getElementById('startBtn').style.display = 'block';
+        document.getElementById('stopBtn').style.display = 'none';
+        document.getElementById('statusBox').className = 'status';
+        document.getElementById('coordsBox').textContent = '';
+
+        set(ref(db, `buses/${BUS_ID}`), {
+            is_active: false,
+            bus_id: BUS_ID,
+            driver_number: DRIVER_NUM,
+        });
+    }
+
+    function sendLocation() {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const { latitude, longitude, speed } = position.coords;
+                const timestamp = new Date().toISOString();
+
+                set(ref(db, `buses/${BUS_ID}`), {
+                    bus_id: BUS_ID,
+                    driver_number: DRIVER_NUM,
+                    latitude: latitude,
+                    longitude: longitude,
+                    speed: speed ? (speed * 3.6).toFixed(1) : 0,
+                    eta: 8,
+                    is_active: true,
+                    timestamp: timestamp,
+                    last_updated: timestamp,
+                })
+                .then(() => {
+                    const time = new Date().toLocaleTimeString();
+                    document.getElementById('statusText').textContent =
+                        `✅ Location sent at ${time}`;
+                    document.getElementById('coordsBox').textContent =
+                        `📍 ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+                })
+                .catch((err) => {
+                    showStatus('Firebase error: ' + err.message, 'error');
+                });
+            },
+            (err) => showStatus('GPS Error: ' + err.message, 'error'),
+            { enableHighAccuracy: true }
+        );
+    }
+
+    function showStatus(msg, type) {
+        const box = document.getElementById('statusBox');
+        box.className = `status ${type}`;
+        document.getElementById('statusText').textContent = msg;
+    }
+</script>
+</body>
+</html>
+```
+
+http://localhost:8080?bus=BUS_001&driver=9876543210

@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "929154949675",
+    "firebase_url": "https://bus-tracking-system-52d5d-default-rtdb.firebaseio.com",
+    "project_id": "bus-tracking-system-52d5d",
+    "storage_bucket": "bus-tracking-system-52d5d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:929154949675:android:0791d1b544ea77404cc06e",
+        "android_client_info": {
+          "package_name": "com.example.student_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB9OH3BohQlCO0eG7obA3jMcObF_5-q9LQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
